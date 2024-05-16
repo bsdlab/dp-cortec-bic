@@ -4,7 +4,7 @@ import tomllib
 
 from ct_bic.utils.global_setup import pyapi, log_file_name, enable_log
 from ct_bic.utils.logging import logger
-from ct_bic.listener import CTListener, BootstrappedRingBuffer
+from ct_bic.listener import CTListener
 from ct_bic.lsl import CTtoLSLStream
 from ct_bic.stimulation_cmds import (
     get_single_pulse_stim_cmd,
@@ -14,6 +14,7 @@ from ct_bic.controller import threshold_single_control
 
 
 from dareplane_utils.stream_watcher.lsl_stream_watcher import StreamWatcher
+from dareplane_utils.general.ringbuffer import RingBuffer
 
 
 CFG = tomllib.load(open("./config/config.toml", "rb"))
@@ -29,12 +30,13 @@ class CTManager:
         self,
         buffer_size_s: float = CFG["lsl"]["buffer_size_s"],
         stream_name: str = CFG["lsl"]["stream_name"],
-        ref_channels: list[int] = [],  # if empty -> global ref is used
+        ref_channels: list[int] = [4],  # if empty -> global ref is used
     ):
         self.ref_channels = ref_channels
         self.buffer_size_s = buffer_size_s
         self.stop_event = threading.Event()
         self.trigger_stop_event = threading.Event()
+        self.i_pulse = 0
 
         # CT implant
 
@@ -43,8 +45,10 @@ class CTManager:
         # the implant ... (indeed event the factory needs to be kept alive)
         self.implant = None
         self.init_implant()
-        bb = BootstrappedRingBuffer(buffer_size_s=self.buffer_size_s)
-        self.listener = CTListener(bb)
+
+        # CT BIC samples at 1kHz
+        rb = RingBuffer(shape=(buffer_size_s * 1000, 32))
+        self.listener = CTListener(rb)
         self.implant.register_listener(self.listener)
 
         # LSL
@@ -148,7 +152,8 @@ class CTManager:
         )
 
     def start_stimulation(self) -> int:
-        logger.debug("Starting stimulation")
+        self.i_pulse += 1
+        logger.debug(f"Starting stimulation - {self.i_pulse}")
         self.implant.start_stimulation()
         return 0
 
@@ -169,7 +174,8 @@ class CTManager:
 
 
 if __name__ == "__main__":
-    ctm = CTManager(ref_channels=[])
+    # Using ch4 as ref, 1 = stim, 2 = ret, 3 = sinus input
+    ctm = CTManager(ref_channels=[4])
 
     # cmds = get_nsec_130Hz_stim(ctm.implant, 0.5)
     # ctm.init_stim_cmds(cmds=cmds)

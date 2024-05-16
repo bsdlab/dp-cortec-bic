@@ -10,8 +10,13 @@ from ct_bic.stimulation_cmds import get_single_pulse_stim_cmd
 def main(port: int = 8080, ip: str = "127.0.0.1", loglevel: int = 10):
     logger.setLevel(loglevel)
 
+    logger.info("Starting CTManager")
     ctm = CTManager()
+
+    logger.info("Generating stim commmands")
     cmds = get_single_pulse_stim_cmd(ctm.implant)
+
+    logger.info("Registering stim commmands")
     ctm.init_stim_cmds(cmds)
 
     # preload the stimulation command with a single pulse

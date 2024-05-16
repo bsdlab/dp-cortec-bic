@@ -26,8 +26,8 @@ def threshold_single_control(
     stop_event: threading.Event,
     threshold: float = 128,
     channel: int = 0,
-    dt_s: float = 0.001,
-    grace_period_s: float = 15,  # the device seems rather slow after a stimulation was trigggered -> have a larger grace period
+    dt_s: float = 0.0002,
+    grace_period_s: float = 2.0,  # the device seems rather slow after a stimulation was trigggered -> have a larger grace period
 ):
     """
     Single threshold control which will fire the callback if value is above
@@ -56,7 +56,7 @@ def threshold_single_control(
                 logger.debug(
                     f"Threshold control firing callback: {lastn=} -{callback}"
                 )
-                #
+                moutlet.push_sample(["firing_callback"])
                 callback()
                 moutlet.push_sample(["callback_fired"])
 

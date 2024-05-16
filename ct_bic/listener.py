@@ -8,6 +8,8 @@ from dareplane_utils.stream_watcher.lsl_stream_watcher import (
     StreamWatcher,
 )
 
+from dareplane_utils.general.ringbuffer import RingBuffer
+
 
 def buffers_to_df(
     data_buffer: list[list], cntr_buffer: list[int]
@@ -20,41 +22,27 @@ def buffers_to_df(
     return df
 
 
-# -- Making use of the ring buffer implemented in the StreamWatcher
-class BootstrappedRingBuffer(StreamWatcher):
-    def _init_buffer(self):
-        n_samples = int(self.buffer_size_s * 1000)  # CT BIC samples at 1kHz
-        self.n_buffer = n_samples
-
-        # Using numpy buffers
-        self.buffer = np.empty((n_samples, 32))
-        self.buffer_t = np.empty(n_samples)
-        self.last_t = 0
-        self.curr_i = 0
-
-
 class CTListener(pyapi.ImplantListener):
     def __init__(
         self,
-        sw: BootstrappedRingBuffer = BootstrappedRingBuffer(
-            name="ct_bic", buffer_size_s=5
-        ),
+        buffer: RingBuffer = RingBuffer((1000, 32)),
         is_measument_active: bool = False,
         n_new: int = 0,
         news: list[int] = [],
         latest_samples: list[float] = [],
     ):
-        self.sw = sw
+        self.ringbuffer = buffer
         self.is_measument_active = is_measument_active
         self.n_new = n_new
         self.news = news
         self.latest_samples = latest_samples
 
-        self.sw._init_buffer()
-
     def reset_buffers(self):
-        # Overwrite by reinit
-        self.sw._init_buffer()
+        # clear values
+        self.ringbuffer.buffer = np.zeros(self.ringbuffer.buffer.shape)
+        self.ringbuffer.buffer_t = np.zeros(self.ringbuffer.buffer.shape[0])
+        self.last_t = 0
+        self.curr_i = 0
 
     def on_measurement_state_changed(self, is_measuring: bool):
         self.is_measument_active = is_measuring
@@ -62,18 +50,13 @@ class CTListener(pyapi.ImplantListener):
     def on_data(self, sample: pyapi.Sample):
         samples = sample.measurements
 
-        # samples to list of lists as would be delivered by lsl
-        # In [90]: %timeit [a[i: i+32] for i in range(0, len(a), 32)]
-        # 543 ns ± 10.8 ns per loop (mean ± std. dev. of 7 runs, 1,000,000 loops each)
-        # In [84]: %timeit np.asarray(a).reshape(-1, 32)
-        # 4.18 µs ± 18.3 ns per loop (mean ± std. dev. of 7 runs, 100,000 loops each)
         samples = [samples[i : i + 32] for i in range(0, len(samples), 32)]
 
         self.latest_samples = samples
 
         # The stream watcher tracks data and times, use the times ring buffer
         # for tracking the package count - second arg here
-        self.sw.add_samples(
+        self.ringbuffer.add_samples(
             samples, [sample.measurement_counter] * len(samples)
         )
         self.n_new += len(samples)
@@ -82,7 +65,7 @@ class CTListener(pyapi.ImplantListener):
         n = self.n_new
         self.news.append(n)
         self.n_new = 0
-        return self.sw.unfold_buffer()[-n:]
+        return self.buffer.unfold_buffer()[-n:]
 
     def on_data_processing_too_slow(self):
         pass
@@ -196,8 +179,8 @@ if __name__ == "__main__":
         time.sleep(5)
         implant.stop_measurement()
 
-        buffer = listener.sw.unfold_buffer()
-        cntr_buffer = listener.sw.unfold_buffer_t()
+        buffer = listener.buffer.unfold_buffer()
+        cntr_buffer = listener.buffer.unfold_buffer_t()
 
         print(f"{len(buffer)=}")
         print(f"{len(cntr_buffer)=}")
