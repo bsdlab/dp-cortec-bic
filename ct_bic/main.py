@@ -153,7 +153,7 @@ class CTManager:
 
     def start_stimulation(self) -> int:
         self.i_pulse += 1
-        logger.debug(f"Starting stimulation - {self.i_pulse}")
+        logger.debug("Starting stimulation - {self.i_pulse}")
         self.implant.start_stimulation()
         return 0
 

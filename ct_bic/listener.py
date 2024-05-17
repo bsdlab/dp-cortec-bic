@@ -65,7 +65,7 @@ class CTListener(pyapi.ImplantListener):
         n = self.n_new
         self.news.append(n)
         self.n_new = 0
-        return self.buffer.unfold_buffer()[-n:]
+        return self.ringbuffer.unfold_buffer()[-n:]
 
     def on_data_processing_too_slow(self):
         pass
