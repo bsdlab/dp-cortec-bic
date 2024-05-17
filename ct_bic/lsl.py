@@ -6,6 +6,8 @@ from ct_bic.listener import CTListener
 from ct_bic.utils.global_setup import pyapi
 from ct_bic.utils.logging import logger
 
+from dareplane_utils.general.time import sleep_s
+
 
 STREAM_NAME = "ct_bic"
 
@@ -14,7 +16,7 @@ def get_stream_outlet(
     stream_name: str = STREAM_NAME,
     sfreq: int = 1000,
     n_channels: int = 32,
-    max_buffer_s: int = 5,
+    max_buffer_s: int = 2,
 ) -> tuple[pylsl.StreamOutlet, pylsl.StreamInfo]:
     info = pylsl.StreamInfo(
         name=stream_name,
@@ -36,14 +38,22 @@ def stream_results(
     stop_event: threading.Event,
 ):
     logger.debug("Starting streaming thread")
-    dt = 1 / outlet.get_info().nominal_srate() * 10**9  # in nano seconds
+    dt_ns = 1 / outlet.get_info().nominal_srate() * 10**9  # in nano seconds
+    dsleep = dt_ns * 1e-9 * 0.9
 
     while not stop_event.is_set():
         t0 = time.time_ns()
-        if listener.n_new > 0 and (time.time_ns() - t0) > dt:
-            for s in listener.get_new_data():
+        if listener.n_new > 0 and (time.time_ns() - t0) >= dt_ns:
+            ndata = listener.get_new_data()
+            logger.info(f"Pushing new samples: {len(ndata)}")
+            for s in ndata:
                 outlet.push_sample(s)
-            # outlet.push_chunk(listener.get_new_data())
+
+
+        # No need to have this running at full speed potentially delaying other
+        # components
+
+        # outlet.push_chunk(listener.get_new_data())
 
 
 class CTtoLSLStream:
@@ -54,9 +64,9 @@ class CTtoLSLStream:
         n_channels: int = 32,
         stop_event: threading.Event = threading.Event(),
     ):
-        self.outlet, self.stream_info = get_stream_outlet(
-            stream_name, sfreq, n_channels
-        )
+        # self.outlet, self.stream_info = get_stream_outlet(
+        #     stream_name, sfreq, n_channels
+        # )
         self.stop_event = stop_event
         self.listener: CTListener | None = None
         self.thread: threading.Thread | None = None
@@ -65,27 +75,29 @@ class CTtoLSLStream:
         self.listener = listener
 
     def start_streaming_thread(self):
-        if self.listener is None:
-            raise ValueError(
-                "No listener attached to the streamer - call "
-                "self.add_listener(listener)."
-            )
-
-        self.stop_event.clear()
-        self.thread = threading.Thread(
-            target=stream_results,
-            args=(self.outlet, self.listener, self.stop_event),
-        )
-        self.thread.start()
+        print("Deprecating start_streaming_thread")
+        # if self.listener is None:
+        #     raise ValueError(
+        #         "No listener attached to the streamer - call "
+        #         "self.add_listener(listener)."
+        #     )
+        #
+        # self.stop_event.clear()
+        # self.thread = threading.Thread(
+        #     target=stream_results,
+        #     args=(self.outlet, self.listener, self.stop_event),
+        # )
+        # self.thread.start()
 
     def stop_streaming_thread(self):
         self.stop_event.set()
         self.thread.join()
 
     def __del__(self):
+        pass
         # Manual clean-up to avoid cluttering of leftover streams
-        del self.outlet
-        del self.stream_info
+        # del self.outlet
+        # del self.stream_info
 
 
 if __name__ == "__main__":

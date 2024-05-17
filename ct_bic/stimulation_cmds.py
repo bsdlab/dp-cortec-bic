@@ -12,7 +12,7 @@ def check_implant(implant: pyapi.implant.Implant):
 
 def get_single_pulse_stim_cmd(
     implant: pyapi.implant.Implant,
-    amplitude_uA: int = 48,  # have very low amplitde to avoid ringing with CorTec's electrode module
+    amplitude_uA: int = 12,  # have very low amplitde to avoid ringing with CorTec's electrode module
     pulsewidth_us: int = 60,
     dz0_us: int = 10,
     dz1_us: int = 7360,

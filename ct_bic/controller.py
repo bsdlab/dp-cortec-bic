@@ -27,7 +27,7 @@ def threshold_single_control(
     threshold: float = 128,
     channel: int = 0,
     dt_s: float = 0.0002,
-    grace_period_s: float = 1.5,  # the device seems rather slow after a stimulation was trigggered -> have a larger grace period
+    grace_period_s: float = 0.5,  # the device seems rather slow after a stimulation was trigggered -> have a larger grace period
 ):
     """
     Single threshold control which will fire the callback if value is above

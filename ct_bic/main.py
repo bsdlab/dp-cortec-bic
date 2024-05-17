@@ -5,7 +5,7 @@ import tomllib
 from ct_bic.utils.global_setup import pyapi, log_file_name, enable_log
 from ct_bic.utils.logging import logger
 from ct_bic.listener import CTListener
-from ct_bic.lsl import CTtoLSLStream
+from ct_bic.lsl import CTtoLSLStream, get_stream_outlet
 from ct_bic.stimulation_cmds import (
     get_single_pulse_stim_cmd,
     get_nsec_130Hz_stim,
@@ -48,16 +48,21 @@ class CTManager:
 
         # CT BIC samples at 1kHz
         rb = RingBuffer(shape=(buffer_size_s * 1000, 32))
-        self.listener = CTListener(rb)
+
+        self.outlet, self.stream_info = get_stream_outlet(
+            stream_name, sfreq=1000, n_channels=32
+        )
+        self.listener = CTListener(rb, outlet=self.outlet)
         self.implant.register_listener(self.listener)
 
-        # LSL
-        self.stop_event = threading.Event()
-        self.streamer = CTtoLSLStream(
-            stream_name=stream_name, stop_event=self.stop_event
-        )
-        self.streamer.add_listener(self.listener)
-
+        # # LSL
+        # self.stop_event = threading.Event()
+        # self.streamer = CTtoLSLStream(
+        #     stream_name=stream_name, stop_event=self.stop_event
+        # )
+        #
+        # self.streamer.add_listener(self.listener)
+        #
         # stim control
         self.trigger_stop_event = threading.Event()
 
@@ -87,7 +92,8 @@ class CTManager:
 
     def start_recording(
         self,
-    ) -> tuple[threading.Thread | None, threading.Event]:
+        ) -> int:
+        #-> tuple[threading.Thread | None, threading.Event]:
         self.stop_event.clear()
 
         self.implant.start_measurement(
@@ -97,11 +103,12 @@ class CTManager:
             use_ground_electrode=True,
         )
 
-        # start streaming to LSL
-        self.streamer.start_streaming_thread()
+        # # start streaming to LSL
+        # self.streamer.start_streaming_thread()
 
         # Return the lsls side thread
-        return self.streamer.thread, self.stop_event
+        # return self.streamer.thread, self.stop_event
+        return 0
 
     def stop_recording(self):
         self.implant.stop_measurement()
@@ -174,6 +181,9 @@ class CTManager:
 
 
 if __name__ == "__main__":
+
+    logger.setLevel(10)
+
     # Using ch4 as ref, 1 = stim, 2 = ret, 3 = sinus input
     ctm = CTManager(ref_channels=[4])
 
@@ -184,7 +194,7 @@ if __name__ == "__main__":
     ctm.init_stim_cmds()
 
     # manually trigger single stimulation pulses
-    th, se = ctm.start_recording()
+    _ = ctm.start_recording()
     thl, sel = ctm.listen_for_stim_trigger()
     q = ""
     while q != "q":
@@ -193,10 +203,15 @@ if __name__ == "__main__":
         )
         if q != "q":
             ctm.start_stimulation()
+        print(f"{q=}")
 
+    print("Stopping stimulation")
     ctm.stop_stimulation()
+
+    print("Stopping recording")
     ctm.stop_recording()
 
+    print("Closing threads")
     ctm.stop_event.set()
     ctm.trigger_stop_event.set()
 
@@ -204,9 +219,13 @@ if __name__ == "__main__":
     import time
 
     time.sleep(5)
+    print("setting power to false")
     ctm.implant.set_implant_power(False)
 
+    print("deleting variable")
     del ctm
+
+    print("deleted")
 
     # Run full time
     # import time

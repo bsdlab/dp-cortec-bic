@@ -1,7 +1,9 @@
+import pylsl
 import numpy as np
 from dataclasses import dataclass, field
 import pandas as pd
 from ct_bic.utils.global_setup import pyapi
+from ct_bic.utils.logging import logger
 
 # Using a streamwatcher instance for its ring buffer
 from dareplane_utils.stream_watcher.lsl_stream_watcher import (
@@ -9,6 +11,8 @@ from dareplane_utils.stream_watcher.lsl_stream_watcher import (
 )
 
 from dareplane_utils.general.ringbuffer import RingBuffer
+
+from dareplane_utils.general.time import sleep_s
 
 
 def buffers_to_df(
@@ -30,12 +34,14 @@ class CTListener(pyapi.ImplantListener):
         n_new: int = 0,
         news: list[int] = [],
         latest_samples: list[float] = [],
+        outlet: pylsl.StreamOutlet | None = None
     ):
         self.ringbuffer = buffer
         self.is_measument_active = is_measument_active
         self.n_new = n_new
         self.news = news
         self.latest_samples = latest_samples
+        self.outlet = outlet
 
     def reset_buffers(self):
         # clear values
@@ -53,19 +59,28 @@ class CTListener(pyapi.ImplantListener):
         samples = [samples[i : i + 32] for i in range(0, len(samples), 32)]
 
         self.latest_samples = samples
+        self.n_new = self.push_to_outlet()
 
-        # The stream watcher tracks data and times, use the times ring buffer
-        # for tracking the package count - second arg here
-        self.ringbuffer.add_samples(
-            samples, [sample.measurement_counter] * len(samples)
-        )
-        self.n_new += len(samples)
+        # # The stream watcher tracks data and times, use the times ring buffer
+        # # for tracking the package count - second arg here
+        # self.ringbuffer.add_samples(
+        #     samples, [sample.measurement_counter] * len(samples)
+        # )
+
+        # self.n_new += len(samples)
 
     def get_new_data(self):
         n = self.n_new
         self.news.append(n)
         self.n_new = 0
         return self.ringbuffer.unfold_buffer()[-n:]
+
+    def push_to_outlet(self) -> int:
+        for s in self.latest_samples:
+            # logger.debug(f"Pushing {len(self.latest_samples)} samples - {s=}")
+            self.outlet.push_sample(s)
+
+        return len(self.latest_samples)
 
     def on_data_processing_too_slow(self):
         pass
