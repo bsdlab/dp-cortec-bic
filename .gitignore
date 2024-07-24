@@ -153,5 +153,5 @@ dmypy.json
 cython_debug/
 
 # data is created during tests should not be tracked
-./test/test_data
+tests/test_data/
 
