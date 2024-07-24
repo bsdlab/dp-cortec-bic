@@ -1,0 +1,7 @@
+[lsl]
+stream_name = 'ct_bic'
+buffer_size_s = 5
+
+[stim_control]
+stream_name = 'control_signal'
+buffer_size_s = 2
