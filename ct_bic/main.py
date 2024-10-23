@@ -1,6 +1,7 @@
 import threading
 import numpy as np
 import tomllib
+from pathlib import Path
 
 from ct_bic.utils.global_setup import pyapi, log_file_name, enable_log
 from ct_bic.utils.logging import logger
@@ -67,6 +68,8 @@ class CTManager:
         self.trigger_stop_event = threading.Event()
 
     def init_implant(self):
+        log_file_pth = Path(log_file_name)
+        log_file_pth.parent.mkdir(exist_ok=True)
         factory = pyapi.ImplantFactory(enable_log, log_file_name)
         ext_unit_infos = factory.load_external_unit_infos()
         implant_info = None
