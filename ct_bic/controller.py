@@ -27,7 +27,7 @@ def threshold_single_control(
     threshold: float = 128,
     channel: int = 0,
     dt_s: float = 0.0002,
-    grace_period_s: float = 0.5,  # the device seems rather slow after a stimulation was trigggered -> have a larger grace period
+    grace_period_s: float = 1.5,  # the device seems rather slow after a stimulation was trigggered -> have a larger grace period
 ):
     """
     Single threshold control which will fire the callback if value is above
@@ -50,6 +50,8 @@ def threshold_single_control(
             sw.update()
             lastn = sw.unfold_buffer()[-10:, channel]
             cval = lastn[-1]
+            t0 = time.time_ns()
+            time.sleep(0.001)
 
             if cval > threshold:
                 t0 = time.time_ns()
@@ -58,33 +60,24 @@ def threshold_single_control(
                 )
                 moutlet.push_sample(["firing_callback"])
                 callback()
+                t_gp = time.time_ns()
                 moutlet.push_sample(["callback_fired"])
 
                 # now wait for the grace period to pass by
-                dtt = time.time_ns() - t0
+                dtt = time.time_ns() - t_gp
                 while not (dtt > grace_period_s * 1e9 and cval < threshold):
-                    dtt = time.time_ns() - t0
+                    dtt = time.time_ns() - t_gp
 
                     # grab new data with the same frequency to be able to evaluate
                     # the second condition in the why statement
                     if dtt > dt_s * 1e9:
                         sw.update()
                         cval = sw.unfold_buffer()[-1:, channel]
+                        t0 = time.time_ns()
+                        time.sleep(0.001)
 
-                    # only release if the control value is below threshold
-                    # if i % 10000 == 0:
-                    #     print(cval)
-                    #     print(threshold)
-                    #     print((time.time_ns() - t0) / 1e9)
-                    # i += 1
                     pass
 
-                t1 = time.time_ns()
-                # Wait for an additional 100ms before becoming active again
-                # only for testing with the oscilloscope
-                while time.time_ns() - t1 < 1e8:
-                    pass
-                sw.update()
 
                 moutlet.push_sample(["listening"])
                 logger.debug("Grace period passed - looking for control again")

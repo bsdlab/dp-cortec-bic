@@ -154,4 +154,5 @@ cython_debug/
 
 # data is created during tests should not be tracked
 tests/test_data/
+config/selfTestConfigs/
 
